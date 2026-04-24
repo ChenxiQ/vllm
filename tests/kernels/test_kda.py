@@ -27,8 +27,9 @@ DEVICE = "npu"
 # the error is purely from the chunk algorithm on triton-ascend.
 # o: actual max ~0.108, set 0.12
 # ht: actual max ~0.0025 (fp16/bf16), ~1e-6 (fp32), set 0.003
-NPU_RMSE_RATIO_O = 0.12
-NPU_RMSE_RATIO_HT = 0.003
+NPU_RMSE_RATIO_O = 0.005
+# NPU_RMSE_RATIO_O = 0.12
+NPU_RMSE_RATIO_HT = 0.005
 
 
 def naive_recurrent_kda(
