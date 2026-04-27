@@ -107,9 +107,6 @@ def test_chunk_kda(
     dtype: torch.dtype,
 ):
     T = cu_seqlens[-1]
-    if T > 4096:
-        pytest.skip("T>4096 hits triton-ascend grid size limit (65536)")
-
     torch.manual_seed(42)
     B = 1
     cu_seqlens_t = torch.LongTensor(cu_seqlens).to(DEVICE)
