@@ -95,6 +95,7 @@ def assert_close(
             (64, 128, [0, 256, 500, 1000], torch.float16),
             (32, 128, [0, 8192], torch.float16),
             (32, 128, [0, 256, 500, 1000], torch.bfloat16),
+            (32, 128, [0, 4096], torch.float16),
         ]
     ],
 )

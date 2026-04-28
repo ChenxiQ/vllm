@@ -72,12 +72,16 @@ def chunk_local_cumsum_scalar_kernel(
 
 
 @triton.heuristics({"IS_VARLEN": lambda args: args["cu_seqlens"] is not None})
+# @triton.autotune(
+#     configs=[
+#         triton.Config({"BS": BS}, num_warps=num_warps)
+#         for BS in BS_LIST
+#         for num_warps in [2, 4, 8]
+#     ],
+#     key=["B", "H", "S", "BT", "IS_VARLEN", "REVERSE"],
+# )
 @triton.autotune(
-    configs=[
-        triton.Config({"BS": BS}, num_warps=num_warps)
-        for BS in BS_LIST
-        for num_warps in [2, 4, 8]
-    ],
+    configs=[triton.Config({"BS": 32}, num_warps=8)],
     key=["B", "H", "S", "BT", "IS_VARLEN", "REVERSE"],
 )
 @triton.jit(do_not_specialize=["T"])
