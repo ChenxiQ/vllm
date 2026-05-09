@@ -87,15 +87,15 @@ def assert_close(
             id="H{}-D{}-cu{}-{}".format(*test),
         )
         for test in [
-            # (32, 128, [0, 64], torch.float16),
+            (32, 128, [0, 64], torch.float16),
             (32, 128, [0, 1024], torch.float16),
-            # (32, 128, [0, 15], torch.float16),
-            # (32, 128, [0, 256, 512, 768, 1024], torch.float16),
-            # (32, 128, [0, 15, 100, 300, 1200], torch.float16),
-            # (64, 128, [0, 256, 500, 1000], torch.float16),
-            # (32, 128, [0, 8192], torch.float16),
-            # (32, 128, [0, 256, 500, 1000], torch.bfloat16),
-            # (32, 128, [0, 4096], torch.float16),
+            (32, 128, [0, 15], torch.float16),
+            (32, 128, [0, 256, 512, 768, 1024], torch.float16),
+            (32, 128, [0, 15, 100, 300, 1200], torch.float16),
+            (64, 128, [0, 256, 500, 1000], torch.float16),
+            (32, 128, [0, 8192], torch.float16),
+            (32, 128, [0, 256, 500, 1000], torch.bfloat16),
+            (32, 128, [0, 4096], torch.float16),
         ]
     ],
 )
@@ -124,18 +124,18 @@ def test_chunk_kda(
 
     ref_outputs = []
     ref_states = []
-    # for i in range(N):
-    #     s, e = cu_seqlens[i], cu_seqlens[i + 1]
-    #     q_i = l2norm_fwd(q[:, s:e].contiguous())
-    #     k_i = l2norm_fwd(k[:, s:e].contiguous())
-    #     o_i, ht_i = naive_recurrent_kda(
-    #         q_i, k_i, v[:, s:e], g[:, s:e], beta[:, s:e],
-    #         initial_state=h0[i], output_final_state=True,
-    #     )
-    #     ref_outputs.append(o_i)
-    #     ref_states.append(ht_i)
-    # ref_o = torch.cat(ref_outputs, dim=1)
-    # ref_ht = torch.cat(ref_states, dim=0)
+    for i in range(N):
+        s, e = cu_seqlens[i], cu_seqlens[i + 1]
+        q_i = l2norm_fwd(q[:, s:e].contiguous())
+        k_i = l2norm_fwd(k[:, s:e].contiguous())
+        o_i, ht_i = naive_recurrent_kda(
+            q_i, k_i, v[:, s:e], g[:, s:e], beta[:, s:e],
+            initial_state=h0[i], output_final_state=True,
+        )
+        ref_outputs.append(o_i)
+        ref_states.append(ht_i)
+    ref_o = torch.cat(ref_outputs, dim=1)
+    ref_ht = torch.cat(ref_states, dim=0)
 
     # h0 transposed to (V, K) layout for the kernel; naive uses (K, V)
     tri_o, tri_ht = chunk_kda(
@@ -148,5 +148,5 @@ def test_chunk_kda(
 
     assert not torch.isnan(tri_o).any(), "Triton output o contains NaN"
     assert not torch.isnan(tri_ht).any(), "Triton output ht contains NaN"
-    # assert_close("o", ref_o, tri_o, NPU_RMSE_RATIO_O)
-    # assert_close("ht", ref_ht, tri_ht.transpose(-1, -2).contiguous(), NPU_RMSE_RATIO_HT)
+    assert_close("o", ref_o, tri_o, NPU_RMSE_RATIO_O)
+    assert_close("ht", ref_ht, tri_ht.transpose(-1, -2).contiguous(), NPU_RMSE_RATIO_HT)

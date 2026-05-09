@@ -552,9 +552,13 @@ def chunk_kda_scaled_dot_kkt_fwd_kernel_intra_sub_inter(
             tl.load(cu_seqlens + i_n).to(tl.int32),
             tl.load(cu_seqlens + i_n + 1).to(tl.int32),
         )
+        # beta is [B, H, T]: base for head i_h at sequence start bos
+        beta_base = beta + i_h * T + bos
         T = eos - bos
     else:
         bos, eos = i_b * T, i_b * T + T
+        # beta is [B, H, T]: base for batch i_b, head i_h
+        beta_base = beta + i_bh * T
 
     q += (bos * H + i_h) * K
     k += (bos * H + i_h) * K
@@ -565,8 +569,8 @@ def chunk_kda_scaled_dot_kkt_fwd_kernel_intra_sub_inter(
     for i_i in range(1, NC):
         if i_t * BT + i_i * BC < T:
             p_b = tl.make_block_ptr(
-                beta + bos * H + i_h,
-                (T,), (H,), (i_t * BT + i_i * BC,), (BC,), (0,),
+                beta_base,
+                (T,), (1,), (i_t * BT + i_i * BC,), (BC,), (0,),
             )
             b_b = tl.load(p_b, boundary_check=(0,))
 
@@ -681,9 +685,13 @@ def chunk_kda_scaled_dot_kkt_fwd_kernel_intra_sub_intra(
             tl.load(cu_seqlens + i_n).to(tl.int32),
             tl.load(cu_seqlens + i_n + 1).to(tl.int32),
         )
+        # beta is [B, H, T]: base for head i_h at sequence start bos
+        beta_base = beta + i_h * T + bos
         T = eos - bos
     else:
         bos, eos = i_b * T, i_b * T + T
+        # beta is [B, H, T]: base for batch i_b, head i_h
+        beta_base = beta + i_bh * T
 
     if i_t * BT + i_i * BC >= T:
         return
@@ -722,7 +730,7 @@ def chunk_kda_scaled_dot_kkt_fwd_kernel_intra_sub_intra(
     b_k = tl.load(p_k, boundary_check=(0, 1))
     b_g = tl.load(p_g, boundary_check=(0, 1))
 
-    p_b = beta + (bos + i_t * BT + i_i * BC + o_i) * H + i_h
+    p_b = beta_base + i_t * BT + i_i * BC + o_i
     b_k = b_k * tl.load(p_b, mask=m_A, other=0)[:, None]
 
     p_kt = k + (bos + i_t * BT + i_i * BC) * H * K + i_h * K + o_k
@@ -882,10 +890,14 @@ def recompute_w_u_fwd_kernel(
             tl.load(cu_seqlens + i_n).to(tl.int32),
             tl.load(cu_seqlens + i_n + 1).to(tl.int32),
         )
+        # beta is [B, H, T]: base for head i_h at sequence start bos
+        beta_base = beta + i_h * T + bos
         T = eos - bos
     else:
         bos, eos = i_b * T, i_b * T + T
-    p_b = tl.make_block_ptr(beta + bos * H + i_h, (T,), (H,), (i_t * BT,), (BT,), (0,))
+        # beta is [B, H, T]: base for batch i_b, head i_h
+        beta_base = beta + i_bh * T
+    p_b = tl.make_block_ptr(beta_base, (T,), (1,), (i_t * BT,), (BT,), (0,))
     b_b = tl.load(p_b, boundary_check=(0,))
 
     p_A = tl.make_block_ptr(
@@ -1215,6 +1227,8 @@ def chunk_kda_fwd(
 ):
     chunk_size = FLA_CHUNK_SIZE
     g = chunk_local_cumsum(g, chunk_size=chunk_size, cu_seqlens=cu_seqlens)
+    # Transpose beta from [B, T, H] to [B, H, T] for contiguous T-dim access on NPU
+    beta = beta.transpose(1, 2).contiguous()
     # the intra Aqk is kept in fp32
     # the computation has very marginal effect on the entire throughput
     A, Aqk = chunk_kda_scaled_dot_kkt_fwd(
